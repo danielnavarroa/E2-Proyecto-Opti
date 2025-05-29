@@ -39,7 +39,7 @@ def cargar_datos():
 
     # Parámetros sueltos
     df_param = pd.read_excel("ParametrosSueltos.xlsx")
-    xi = df_param.loc[0, "efectividad_patullaje_sin_vehiculo"]
+    xi = df_param.loc[0, "efectividad_patrullaje_sin_vehiculo"]
     epsilon = df_param.loc[0, "dist_maxima_desplazamiento"]
     alpha = df_param.loc[0, "presupuesto_inicial"]
 
@@ -155,7 +155,6 @@ def main():
     model = construir_modelo(data)
     resultado = resolver_modelo(model)
     imprimir_resultados(resultado)
-    pass
 
 if __name__ == "__main__":
     main()
