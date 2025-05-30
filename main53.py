@@ -90,27 +90,28 @@ def cargar_datos():
 def construir_modelo(data):
     model = Model()
     model.setParam("TimeLimit", 60)
-    #S = data
-    #F = data
-    #T = data
-    #C = data
-    #C_s = data
-    #P = data
-    #B = data
-    #G = data
-    #dc = data
-    #alpha =  data
-    #gamma = data
-    #beta = data
-    #lambda_ = data
-    #eta = data
-    #delta = data
-    #xi = data
-    #kappa = data
-    #psi = data
-    #rho = data
-    #epsilon = data
-    #ms = data
+    S = data["S"]
+    F = data["F"]
+    T = data["T"]
+    C = data["C"]
+    C_s = data["Cs"]
+    P = data["P"]
+    B = data["B"]
+    G = data["G"]
+    dc = data["dc"]
+    alpha =  data["alpha"]
+    i = data["isft"]
+    gamma = data["gammab"]
+    beta = data["beta"]
+    lambda_ = data["lambdag"]
+    eta = data["etas"]
+    delta = data["deltab"]
+    xi = data["xi"]
+    kappa = data["kappab"]
+    psi = data["psig"]
+    rho = data["rho"]
+    epsilon = data["epsilon"]
+    ms = data["ms"]
     M = 1e6
 
     X = model.addVars(P, C, T, F, vtype = GRB.BINARY, name = "x_pctf")
@@ -138,12 +139,12 @@ def construir_modelo(data):
             - quicksum(A[g, s, tp] * lambda_[g] for tp in range(t-29, t+1) for s in S for g in G),
             name=f"R1.{t/30}"
         )
-    model.addConstrs((quicksum(X[p][c][t][f] >= dc[c] for p in P) for c in C for t in T for f in F), name="R2")
+    model.addConstrs((quicksum(X[p, c, t, f] >= dc[c] for p in P) for c in C for t in T for f in F), name="R2")
     model.addConstrs((quicksum(W[s, b, t, f] for b in B) >= eta[s] for s in S for t in T for f in F), name="R3")
-    model.addConstrs((quicksum(X[p][c][t][f] for c in C) <= 1 for p in P for t in T for f in F), name="R4")
-    model.addConstrs((quicksum(X[p][c][t][f] for f in F) <= 2 for p in P for t in T for c in C), name="R5")
-    model.addConstrs((quicksum(J[s][b][p][t][f] for b in B) <= U[p][s][t][f] for s in S for p in P for t in T for f in F), name="R6")
-    model.addConstrs((quicksum(J[s][b][p][t][f] for p in P) <= delta[b] for s in S for b in B for t in T for f in F), name="R7")
+    model.addConstrs((quicksum(X[p, c, t, f] for c in C) <= 1 for p in P for t in T for f in F), name="R4")
+    model.addConstrs((quicksum(X[p, c, t, f] for f in F) <= 2 for p in P for t in T for c in C), name="R5")
+    model.addConstrs((quicksum(J[s, b, p, t, f] for b in B) <= U[p, s, t, f] for s in S for p in P for t in T for f in F), name="R6")
+    model.addConstrs((quicksum(J[s, b, p, t, f] for p in P) <= delta[b] for s in S for b in B for t in T for f in F), name="R7")
     model.addConstrs(
     (
         V[s, t, f] ==
@@ -154,22 +155,21 @@ def construir_modelo(data):
     ),
     name="R8"
     )
-    model.addConstrs((quicksum(X[p][c][t][f] for c in C[s]) <= quicksum(U[p][s][t][f] for p in P) for s in S for t in T for f in F), name="R9")
-    model.addConstrs((0.5 * quicksum(J[s, b, p, t, f] * rho[s1][s2] for s1 in S for f in F for b in B) <= epsilon for s2 in S for t in T for p in P), name="R10") #media SUS esta restricción, puede causar problemas.
+    model.addConstrs((quicksum(X[p, c, t, f] for p in P for c in C_s[s]) <= quicksum(U[p, s, t, f] for p in P) for s in S for t in T for f in F), name="R9")
+    model.addConstrs((0.5 * quicksum(J[s1, b, p, t, f] * rho[s1][s2] for s1 in S for f in F for b in B) <= epsilon for s2 in S for t in T for p in P), name="R10") #media SUS esta restricción, puede causar problemas.
     model.addConstrs((J[s1, b, p, t, f] + J[s2, b, p, t, f] <= 1 for s1 in S for s2 in S if s1 != s2 for b in B for p in P for t in T for f in F), name="R11")
-    model.addConstrs((quicksum(A[g][s][t] for t in T for g in G) >= ms for s in S), name="R12")
-    model.addConstrs((quicksum(J[s][b][p][t][f] for p in P) <= M * W[s][b][t][f] for s in S for b in B for t in T for f in F), name="R13.1")
-    model.addConstrs((W[s][b][t][f] <= quicksum(J[s][b][p][t][f] for p in P) for s in S for b in B for t in T for f in F), name="R13.2")
+    model.addConstrs((quicksum(A[g, s, t] for t in T for g in G) >= ms for s in S), name="R12")
+    model.addConstrs((quicksum(J[s, b, p, t, f] for p in P) <= M * W[s, b, t, f] for s in S for b in B for t in T for f in F), name="R13.1")
+    model.addConstrs((W[s, b, t, f] <= quicksum(J[s, b, p, t, f] for p in P) for s in S for b in B for t in T for f in F), name="R13.2")
 
     model.setObjective(
-    quicksum(v[s, t, f] * i[s, t, f] for s in S for t in T for f in F),
+    quicksum(V[s, t, f] * i[s, t, f] for s in S for t in T for f in F),
     GRB.MAXIMIZE
 )
     return model
     
 
 def resolver_modelo(model):
-
     model.optimize()
     return model
 
