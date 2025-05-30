@@ -94,39 +94,75 @@ def construir_modelo(data):
     #F = data
     #T = data
     #C = data
+    #C_s = data
     #P = data
     #B = data
     #G = data
     #dc = data
-    #alpha =    ºººº data
+    #alpha =  data
+    #gamma = data
+    #beta = data
+    #lambda_ = data
+    #eta = data
+    #delta = data
+    #xi = data
+    #kappa = data
+    #psi = data
+    #rho = data
+    #epsilon = data
+    #ms = data
+    M = 1e6
 
-    x = model.addVars(P, C, T, F, vtype = GRB.BINARY, name = "x_pctf")
-    w = model.addVars(S, B, T, F, vtype = GRB.BINARY, name = "w_sbtf")
-    j = model.addVars(S, B, P, T, F, vtype = GRB.BINARY, name = "j_sbptf")
-    l = model.addVars(S, P, T, F, vtype = GRB.BINARY, name = "l_sptf")
-    u = model.addVars(S, P, T, F, vtype = GRB.BINARY, name = "u_sptf")
-    a = model.addVars(G, S, T, vtype = GRB.BINARY, name = "a_gst")
-    k = model.addVars(T, vtype = GRB.CONTINUOUS, name = "k_t")
-    v = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, name = "l_sptf")
+    X = model.addVars(P, C, T, F, vtype = GRB.BINARY, name = "x_pctf")
+    W = model.addVars(S, B, T, F, vtype = GRB.BINARY, name = "w_sbtf")
+    J = model.addVars(S, B, P, T, F, vtype = GRB.BINARY, name = "j_sbptf")
+    L = model.addVars(S, P, T, F, vtype = GRB.BINARY, name = "l_sptf")
+    U = model.addVars(S, P, T, F, vtype = GRB.BINARY, name = "u_sptf")
+    A = model.addVars(G, S, T, vtype = GRB.BINARY, name = "a_gst")
+    K = model.addVars(T, vtype = GRB.CONTINUOUS, lb=0, name = "k_t")
+    V = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, lb=0, name = "l_sptf")
     model.update()
 
-    model.addConstrs((quicksum(k[30] == alpha - x[p][c][t][f] >= dc[c] for p in P) x[i] <= M * w[i] for i in I), name="R1")
-    model.addConstrs((quicksum(x[p][c][t][f] >= dc[c] for p in P) for c in C for t in T for f in F), name="R2")
-    model.addConstrs((w[i] + w[int(k)-1] <= 1 for i in I for k in Pi[i] if k != '' and pd.notna(k)), name="R3")
-    model.addConstrs((x[i] <= M * w[i] for i in I), name="R4")
-    model.addConstrs((quicksum(aij[i][j] * x[i] for i in I) <= bj[j] + y[j] for j in J), name="R5")
-    model.addConstrs((w[i] + w[int(k)-1] <= 1 for i in I for k in Pi[i] if k != '' and pd.notna(k)), name="R6")
-    model.addConstrs((x[i] <= M * w[i] for i in I), name="R7")
-    model.addConstrs((quicksum(aij[i][j] * x[i] for i in I) <= bj[j] + y[j] for j in J), name="R8")
-    model.addConstrs((w[i] + w[int(k)-1] <= 1 for i in I for k in Pi[i] if k != '' and pd.notna(k)), name="R9")
-    model.addConstrs((x[i] <= M * w[i] for i in I), name="R10")
-    model.addConstrs((quicksum(aij[i][j] * x[i] for i in I) <= bj[j] + y[j] for j in J), name="R11")
-    model.addConstrs((w[i] + w[int(k)-1] <= 1 for i in I for k in Pi[i] if k != '' and pd.notna(k)), name="R12")
-    model.addConstr(quicksum(y[j] * cj[j] for j in J) <= W, name="R13")
-    model.addConstr(quicksum(w[i] for i in I) <= N, name="R14")
+    model.addConstr(
+    K[30] == alpha
+    - quicksum(W[s, b, t, f] * gamma[b] for t in range(1, 31) for f in F for s in S for b in B)
+    - quicksum(beta[p] for p in P)
+    - quicksum(A[g, s, t] * lambda_[g] for t in range(1, 31) for s in S for g in G),
+    name="R1.1"
+    )
+    for t in range(60, 361, 30):
+        model.addConstr(
+            K[t] == K[t-30]
+            - quicksum(W[s, b, tp, f] * gamma[b] for tp in range(t-29, t+1) for f in F for s in S for b in B)
+            - quicksum(beta[p] for p in P)
+            - quicksum(A[g, s, tp] * lambda_[g] for tp in range(t-29, t+1) for s in S for g in G),
+            name=f"R1.{t/30}"
+        )
+    model.addConstrs((quicksum(X[p][c][t][f] >= dc[c] for p in P) for c in C for t in T for f in F), name="R2")
+    model.addConstrs((quicksum(W[s, b, t, f] for b in B) >= eta[s] for s in S for t in T for f in F), name="R3")
+    model.addConstrs((quicksum(X[p][c][t][f] for c in C) <= 1 for p in P for t in T for f in F), name="R4")
+    model.addConstrs((quicksum(X[p][c][t][f] for f in F) <= 2 for p in P for t in T for c in C), name="R5")
+    model.addConstrs((quicksum(J[s][b][p][t][f] for b in B) <= U[p][s][t][f] for s in S for p in P for t in T for f in F), name="R6")
+    model.addConstrs((quicksum(J[s][b][p][t][f] for p in P) <= delta[b] for s in S for b in B for t in T for f in F), name="R7")
+    model.addConstrs(
+    (
+        V[s, t, f] ==
+        quicksum(L[s, p, t, f] * xi for p in P) +
+        quicksum(J[s, b, p, t, f] * kappa[b] for b in B for p in P) +
+        quicksum(A[g, s, t] * psi[g] for g in G)
+        for s in S for t in T for f in F
+    ),
+    name="R8"
+    )
+    model.addConstrs((quicksum(X[p][c][t][f] for c in C[s]) <= quicksum(U[p][s][t][f] for p in P) for s in S for t in T for f in F), name="R9")
+    model.addConstrs((0.5 * quicksum(J[s, b, p, t, f] * rho[s1][s2] for s1 in S for f in F for b in B) <= epsilon for s2 in S for t in T for p in P), name="R10") #media SUS esta restricción, puede causar problemas.
+    model.addConstrs((J[s1, b, p, t, f] + J[s2, b, p, t, f] <= 1 for s1 in S for s2 in S if s1 != s2 for b in B for p in P for t in T for f in F), name="R11")
+    model.addConstrs((quicksum(A[g][s][t] for t in T for g in G) >= ms for s in S), name="R12")
+    model.addConstrs((quicksum(J[s][b][p][t][f] for p in P) <= M * W[s][b][t][f] for s in S for b in B for t in T for f in F), name="R13.1")
+    model.addConstrs((W[s][b][t][f] <= quicksum(J[s][b][p][t][f] for p in P) for s in S for b in B for t in T for f in F), name="R13.2")
 
     model.setObjective(
-    gp.quicksum(v[s, t, f] * i[s, t, f] for s in S for t in T for f in F),
+    quicksum(v[s, t, f] * i[s, t, f] for s in S for t in T for f in F),
     GRB.MAXIMIZE
 )
     return model
