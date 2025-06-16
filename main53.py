@@ -95,6 +95,7 @@ def cargar_datos():
     return data
 
 
+
 def construir_modelo(data):
     model = Model()
     model.setParam("TimeLimit", 1800)
@@ -132,6 +133,7 @@ def construir_modelo(data):
     V = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, lb=0, name = "l_sptf")
     model.update()
 
+    """
     model.addConstr(
     K[30] == alpha
     - quicksum(W[s, b, t, f] * gamma[b] for t in range(1, 31) for f in F for s in S for b in B)
@@ -147,12 +149,12 @@ def construir_modelo(data):
         - quicksum(A[g, s, tp] * lambda_[g] for tp in range(31, 61) for s in S for g in G),
         name="R1.2"
     )
-
+    """
     model.addConstrs((quicksum(X[p, c, t, f] for p in P) >= dc[c] for c in C for t in T for f in F), name="R2")
     model.addConstrs((quicksum(J[s, b, p, t, f] for s in S) <= 1 for p in P for t in T for b in B for f in F), name="R3")
     model.addConstrs((quicksum(W[s, b, t, f] for b in B) >= eta[s] for s in S for t in T for f in F), name="R4")
     model.addConstrs((quicksum(X[p, c, t, f] for c in C) <= 1 for p in P for t in T for f in F), name="R5")
-    model.addConstrs((quicksum(X[p, c, t, f] for f in F) <= 2 for p in P for t in T for c in C), name="R6")
+    model.addConstrs((quicksum(X[p, c, t, f] for f in F for c in C) <= 2 for p in P for t in T), name="R6")
     model.addConstrs((quicksum(J[s, b, p, t, f] for b in B) <= U[s, p, t, f] for s in S for p in P for t in T for f in F), name="R7")
     model.addConstrs((quicksum(J[s, b, p, t, f] for p in P) <= delta[b] for s in S for b in B for t in T for f in F), name="R8")
     model.addConstrs(
@@ -165,7 +167,7 @@ def construir_modelo(data):
     ),
     name="R9"
     )
-    model.addConstrs((quicksum(X[p, c, t, f] for p in P for c in C_s[s]) <= quicksum(U[s, p, t, f] for p in P) for s in S for t in T for f in F), name="R10")
+    model.addConstrs((quicksum(X[p, c, t, f] for p in P for c in C_s[s]) >= quicksum(U[s, p, t, f] for p in P) for s in S for t in T for f in F), name="R10")
 
     model.addConstrs((0.5 * quicksum(J[s1, b, p, t, f] * rho[s1, s2] for s1 in S for f in F for b in B) <= epsilon for s2 in S for t in T for p in P), name="R11") #media SUS esta restricción, puede causar problemas.
     model.addConstrs((J[s1, b, p, t, f] + J[s2, b, p, t, f] <= 1 for s1 in S for s2 in S if s1 != s2 for b in B for p in P for t in T for f in F), name="R12")
@@ -184,6 +186,7 @@ def resolver_modelo(model):
     model.optimize()
     return model
 
+
 def imprimir_resultados(model):
     status = model.Status
     if status in (GRB.OPTIMAL, GRB.SUBOPTIMAL, GRB.TIME_LIMIT):
@@ -195,12 +198,50 @@ def imprimir_resultados(model):
     else:
         print(f"No se encontró solución factible. Status del modelo: {status}")
 
+def imprimir_asignaciones_utiles(model, data):
+
+    S, F, T, P, C, B, G = data["S"], data["F"], data["T"], data["P"], data["C"], data["B"], data["G"]
+
+    df_resultados = []
+
+    for var in model.getVars():
+        if var.X > 0.5:
+            nombre = var.VarName
+            if nombre.startswith("x_pctf["):
+                p, c, t, f = nombre.replace("x_pctf[", "").replace("]", "").split(",")
+                df_resultados.append(["Asignación Carabinero", p, c, int(t), f, "—"])
+            elif nombre.startswith("u_sptf["):
+                s, p, t, f = nombre.replace("u_sptf[", "").replace("]", "").split(",")
+                df_resultados.append(["Carabinero Patrullando", s, p, int(t), f, "—"])
+            elif nombre.startswith("w_sbtf["):
+                s, b, t, f = nombre.replace("w_sbtf[", "").replace("]", "").split(",")
+                df_resultados.append(["Vehículo Asignado", s, b, int(t), f, "—"])
+            elif nombre.startswith("a_gst["):
+                g, s, t = nombre.replace("a_gst[", "").replace("]", "").split(",")
+                df_resultados.append(["Material Usado", s, g, int(t), "—", "—"])
+            # elif nombre.startswith("l_sptf["):
+                # s, p, t, f = nombre.replace("l_sptf[", "").replace("]", "").split(",")
+                # df_resultados.append(["Carabinero Patrullando sin Vehículo", s, p, int(t), f, "—"])
+            elif nombre.startswith("v_stf["):
+                s, t, f = nombre.replace("v_stf[", "").replace("]", "").split(",")
+                df_resultados.append(["Nivel Patrullaje", s, "—", int(t), f, round(var.X, 2)])
+
+
+    df = pd.DataFrame(df_resultados, columns=["Tipo", "Comuna / C", "ID", "Día", "Franja", "Valor"])
+    df = df.sort_values(["Tipo", "Comuna / C", "Día", "Franja"])
+    pd.set_option('display.max_rows', 200)
+    print(df)
+    return df
+
 
 def main():
     data = cargar_datos()
     model = construir_modelo(data)
     resultado = resolver_modelo(model)
     imprimir_resultados(resultado)
+    imprimir_asignaciones_utiles(model, data)
+
 
 if __name__ == "__main__":
     main()
+
