@@ -58,7 +58,7 @@ def cargar_datos():
     }
 
     # Índice de criminalidad por (comuna, franja, día)
-    df_i = pd.read_csv("IndiceCrimenxComuna2.csv")
+    df_i = pd.read_csv("IndiceCrimenxComuna.csv")
     isft = { (row["Comuna"], row["Día"], row["Franja Horaria"]):
         row["Índice Criminalidad"]
         for _, row in df_i.iterrows() }
@@ -133,7 +133,7 @@ def construir_modelo(data):
     V = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, lb=0, name = "v_stf")
     model.update()
 
-    
+    '''
     model.addConstr(
     K[30] == alpha
     - quicksum(W[s, b, t, f] * gamma[b] for t in range(1, 31) for f in F for s in S for b in B)
@@ -149,7 +149,7 @@ def construir_modelo(data):
         - quicksum(A[g, s, tp] * lambda_[g] for tp in range(31, 61) for s in S for g in G),
         name="R1.2"
     )
-    
+    '''
     model.addConstrs((quicksum(X[p, c, t, f] for p in P) >= dc[c] for c in C for t in T for f in F), name="R2")
     model.addConstrs((quicksum(J[s, b, p, t, f] for s in S) <= 1 for p in P for t in T for b in B for f in F), name="R3")
     model.addConstrs((quicksum(W[s, b, t, f] for b in B) >= eta[s] for s in S for t in T for f in F), name="R4")
@@ -237,7 +237,6 @@ def main():
     resultado = resolver_modelo(model)
     imprimir_resultados(resultado)
 
-
     df_resultados = imprimir_asignaciones_utiles(model, data)
 
     # Acá convertimos los resultados que nos interesan a excel
@@ -257,6 +256,15 @@ def main():
 
     df_cobertura = df_pat.groupby("Comuna")["Patrullaje"].sum().reset_index()
     df_cobertura.to_excel("cobertura_por_comuna.xlsx", index=False)
+
+    try:
+        valor_presupuesto_final = model.getVarByName("k_t[60]").X
+    except:
+        valor_presupuesto_final = None
+
+    df_presupuesto = pd.DataFrame([["Presupuesto final", valor_presupuesto_final]],
+                                   columns=["Descripción", "Valor"])
+    df_presupuesto.to_excel("presupuesto_final.xlsx", index=False)
 
 
 
