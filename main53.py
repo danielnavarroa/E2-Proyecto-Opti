@@ -9,7 +9,7 @@ def cargar_datos():
     S = df_C["comuna"].unique().tolist()
     dc = df_C.set_index("id_comisaria")["min_carabineros"].to_dict()
     Cs = df_C.groupby("comuna")["id_comisaria"].apply(list).to_dict() 
-            #si quiero la cantidad en ves de los id es .apply(len)
+
 
     # Franjas horarias
     df_F = pd.read_csv("FranjaHoraria.csv", header=None)
@@ -130,10 +130,10 @@ def construir_modelo(data):
     U = model.addVars(S, P, T, F, vtype = GRB.BINARY, name = "u_sptf")
     A = model.addVars(G, S, T, vtype = GRB.BINARY, name = "a_gst")
     K = model.addVars(T, vtype = GRB.CONTINUOUS, lb=0, name = "k_t")
-    V = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, lb=0, name = "l_sptf")
+    V = model.addVars(S, T, F, vtype = GRB.CONTINUOUS, lb=0, name = "v_stf")
     model.update()
 
-    """
+    
     model.addConstr(
     K[30] == alpha
     - quicksum(W[s, b, t, f] * gamma[b] for t in range(1, 31) for f in F for s in S for b in B)
@@ -149,7 +149,7 @@ def construir_modelo(data):
         - quicksum(A[g, s, tp] * lambda_[g] for tp in range(31, 61) for s in S for g in G),
         name="R1.2"
     )
-    """
+    
     model.addConstrs((quicksum(X[p, c, t, f] for p in P) >= dc[c] for c in C for t in T for f in F), name="R2")
     model.addConstrs((quicksum(J[s, b, p, t, f] for s in S) <= 1 for p in P for t in T for b in B for f in F), name="R3")
     model.addConstrs((quicksum(W[s, b, t, f] for b in B) >= eta[s] for s in S for t in T for f in F), name="R4")
@@ -219,14 +219,12 @@ def imprimir_asignaciones_utiles(model, data):
             elif nombre.startswith("a_gst["):
                 g, s, t = nombre.replace("a_gst[", "").replace("]", "").split(",")
                 df_resultados.append(["Material Usado", s, g, int(t), "—", "—"])
-            # elif nombre.startswith("l_sptf["):
-                # s, p, t, f = nombre.replace("l_sptf[", "").replace("]", "").split(",")
-                # df_resultados.append(["Carabinero Patrullando sin Vehículo", s, p, int(t), f, "—"])
             elif nombre.startswith("v_stf["):
                 s, t, f = nombre.replace("v_stf[", "").replace("]", "").split(",")
                 df_resultados.append(["Nivel Patrullaje", s, "—", int(t), f, round(var.X, 2)])
 
-
+    # Agregué una columna de valor acá pero al final la elimino porque no aportaba mucho
+    # pero es para no cambiar más el código
     df = pd.DataFrame(df_resultados, columns=["Tipo", "Comuna / C", "ID", "Día", "Franja", "Valor"])
     df = df.sort_values(["Tipo", "Comuna / C", "Día", "Franja"])
     pd.set_option('display.max_rows', 200)
@@ -239,7 +237,30 @@ def main():
     model = construir_modelo(data)
     resultado = resolver_modelo(model)
     imprimir_resultados(resultado)
-    imprimir_asignaciones_utiles(model, data)
+
+
+    df_resultados = imprimir_asignaciones_utiles(model, data)
+    df_resultados = df_resultados.drop(columns=["Valor"])
+
+    # Acá convertimos los resultados que nos interesan a excel
+    df_resultados.to_excel("resultados.xlsx", index=False)
+
+    # Esto es para crear el segundo archivo excel que contiene los valores
+    # de cobertura final por comuna
+    df_pat = pd.DataFrame([
+        (s.strip(), int(t), int(f), var.X)
+        for var in model.getVars()
+        if var.VarName.startswith("v_stf[")
+        for nombre in [var.VarName[6:-1]] 
+        for partes in [nombre.rsplit(",", 2)]  
+        for s, t, f in [(*partes,)] 
+        if var.X > 1e-3
+    ], columns=["Comuna", "Día", "Franja", "Patrullaje"])
+
+    df_cobertura = df_pat.groupby("Comuna")["Patrullaje"].sum().reset_index()
+    df_cobertura.to_excel("cobertura_por_comuna.xlsx", index=False)
+
+
 
 
 if __name__ == "__main__":
