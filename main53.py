@@ -227,7 +227,6 @@ def imprimir_asignaciones_utiles(model, data):
     df = pd.DataFrame(df_resultados, columns=["Tipo", "Comuna / C", "ID", "Día", "Franja", "Valor"])
     df = df.sort_values(["Tipo", "Comuna / C", "Día", "Franja"])
     pd.set_option('display.max_rows', 200)
-    print(df)
     return df
 
 
