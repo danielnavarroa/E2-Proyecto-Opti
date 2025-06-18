@@ -58,7 +58,7 @@ def cargar_datos():
     }
 
     # Índice de criminalidad por (comuna, franja, día)
-    df_i = pd.read_csv("IndiceCrimenxComuna.csv")
+    df_i = pd.read_csv("IndiceCrimenxComuna2.csv")
     isft = { (row["Comuna"], row["Día"], row["Franja Horaria"]):
         row["Índice Criminalidad"]
         for _, row in df_i.iterrows() }
@@ -223,8 +223,7 @@ def imprimir_asignaciones_utiles(model, data):
                 s, t, f = nombre.replace("v_stf[", "").replace("]", "").split(",")
                 df_resultados.append(["Nivel Patrullaje", s, "—", int(t), f, round(var.X, 2)])
 
-    # Agregué una columna de valor acá pero al final la elimino porque no aportaba mucho
-    # pero es para no cambiar más el código
+
     df = pd.DataFrame(df_resultados, columns=["Tipo", "Comuna / C", "ID", "Día", "Franja", "Valor"])
     df = df.sort_values(["Tipo", "Comuna / C", "Día", "Franja"])
     pd.set_option('display.max_rows', 200)
@@ -240,7 +239,6 @@ def main():
 
 
     df_resultados = imprimir_asignaciones_utiles(model, data)
-    df_resultados = df_resultados.drop(columns=["Valor"])
 
     # Acá convertimos los resultados que nos interesan a excel
     df_resultados.to_excel("resultados.xlsx", index=False)
